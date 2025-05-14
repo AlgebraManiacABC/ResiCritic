@@ -1,0 +1,10 @@
+matplotlib
+numpy
+pandas
+plotly
+openpyxl
+pyinstaller
+rich
+questionary
+pyyaml
+
