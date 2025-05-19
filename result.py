@@ -106,10 +106,8 @@ def compute_results(context: dict):
         if not fasta_file_list or fasta_file_list == ['']:
             tui.say(f"Skipping {experiment_name}.")
             continue
-        tui.say(f"Analyzing experiment [bold blue]{experiment_name}[/] with fastas:")
         all_results[experiment_name] = {}
         for fasta_filename in fasta_file_list:
-            tui.say(f"\t- '{Path(fasta_filename).name}'")
             fasta_seq = context['fasta_sequences'][fasta_filename]
             if isinstance(fasta_seq,list):
                 # Multi-sequence FASTA
