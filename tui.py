@@ -30,7 +30,7 @@ def say_error(that: str = ""):
 
 def print_welcome():
     say(f"Welcome to [bold green]ResiCritic![/] (Version {__version__})")
-    say("Developed by [bold purple]Luke Dunn[/] at the [bold orange3]University of Missouri[/] (lwdbf6@umsystem.edu)")
+    say("Developed by [bold purple]Luke Dunn[/] at the [bold orange3]University of Missouri[/] (dunnl@umsystem.edu)")
 
 def done():
     say("All done!")
