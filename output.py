@@ -69,7 +69,7 @@ def export_modification_lists(context: dict):
     num_results = len([result.values() for result in context['results'].values() if result])
     save_modifications = tui.confirm(f"Do you wish to save the modification lists to a file? There are {num_results} experiment(s) to save.")
     if save_modifications:
-        modification_list_filename = files.open_new_file("Choose a new file for the coverage maps")
+        modification_list_filename = files.open_new_file("Choose a new file for the modification list(s)")
         if not modification_list_filename:
             tui.say("Skipping modification list export - you may rerun the script to save your data!")
             return EXIT_SUCCESS

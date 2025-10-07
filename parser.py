@@ -113,13 +113,30 @@ def read_modification_lists(context: dict):
     return modification_lists
 
 def clean_peptide_sequence(dirty: str) -> str:
+    '''
+    Expects a "dirty" peptide sequence from PEAKS or Proteome Discover, which
+     may be of a few styles:
+
+    Proteome Discover:
+    [K].VSPFLNATYR.[K]
+    [].MGKEPMSGFKAIDK.[]
+    [K].LLSDDGDSVGYGEPLVAVLPSFHDINIQ.[-]
+    etc.
+
+    PEAKS:
+    D.SHVYPDYVVPPSYDSLLGKLIVWAPTRE.R
+    E.C(+57.02)RINAEDPFK(+42.01)GFRPGPGRITSYLPSGGPFVRMD.S
+    etc.
+    '''
     # Remove brackets
     dirty = re.sub(r'[\[\]]', '', dirty)
     # Remove trailing ends, if there
-    if dirty[1] == '.':
-        dirty = dirty[2:]
-    if dirty[-2] == '.':
-        dirty = dirty[:-2]
+    dot_left = dirty.find('.',0,2)
+    dot_right = dirty.find('.',len(dirty)-2)
+    if dot_left >= 0:
+        dirty = dirty.split('.', 1)[1]
+    if dot_right >= 0:
+        dirty = dirty.rsplit('.',1)[0]
     # Remove parentheticals
     clean = re.sub(r'\([^)]*\)', '', dirty)
     # Check that we only have accepted residues
@@ -142,85 +159,86 @@ def clean_modification_list(dirty, target_mod: str):
     #   2: "Sn:Acetylation (STY):##.##"
     #   3: "1xAcetyl [Kn(##)]"
     #   4: "1xAcetyl [T/K/S]"
-    # We cannot use case 4, so the entire peptide hit should be DISCARDED
+    #   5: "1xAcetyl [S]"
+    # We cannot use case 4 or 5, so the entire peptide hit will be DISCARDED :(
     #  (not counted toward either acetylated/unacetylated).
-    if any(modification_uncertain(mod) for mod in clean_list):
+    if any('/' in mod for mod in clean_list):
         return None
 
+    out_list = []
     for i,mod in enumerate(clean_list):
         # We can further simplify our list by
         #  grabbing only the "Xn" string (e.g., K107)
-        match = re.search(r'[A-Z]\d+',mod)
-        if not match:
-            raise RuntimeError(f"Unexpected modification string '{dirty}'!")
-        clean_list[i] = match.group()
+        matched = re.search(r'[A-Z]\d+', mod)
+        uncertain = re.search(r'\[[A-Z]\]', mod)
+        term = re.search(r'\b[NC]-Term\b', mod)
+        if uncertain:
+            return None
+        if not matched and not term:
+            raise RuntimeError(f"Unexpected modification string '{dirty}'!\nDEBUG:\nTerm: {term}\nMatched: {matched}\n{clean_list}")
 
-    return clean_list
+        if matched:
+            out_list.append(matched.group())
+
+    return out_list
 
 def split_modification_str_to_list(mods: str) -> list:
-    # "AScore"
+    # "AScore" (PEAKS)
     #    eg.:
     #    "C1:Carbamidomethylation:1000.00;M32:Oxidation (M):1000.00"
     #    "C5:Carbamidomethylation:1000.00;K14:Acetylation (K):1000.00"
     #    "T1:Acetylation (STY):99.62;M2:Oxidation (M):1000.00;K3:Acetylation (K):1000.00"
-    # "Modifications"
+    # "Modifications" (Proteome Discover)
     #    eg.:
     #    "1xCarbamidomethyl [C5]; 1xAcetyl [K14(100)]"
     #    "1xAcetyl [K5(100)]"
     #    "1xAcetyl [T/K/S]"
+    #    "2xAcetyl [T14; S17]"
+    #    "2xAcetyl [T14; S17]; 1xAcetyl [N-Term]; 1xCarbamidomethyl [C5]"
     if ';' not in mods:
         # Only a single modification.
-        # Convert to list
+        # Convert to list containing single string
         return [mods]
     if '[' not in mods:
-        # "AScore" version. Split by semicolon
+        # PEAKS version. Split by semicolon
         return mods.split(';')
 
-    inside_brackets = re.findall(r'\[.*\]',mods)
-    if not any(';' in bracket_text for bracket_text in inside_brackets):
+    # Only Proteome Discover possibilities remaining
+    # Inside brackets examples:
+    #  [K5(100)]
+    #  [T/K/S]
+    #  [T14; S17]
+    #  [N-Term]
+    #  [K5]
+    #  [S]
+    mods_split = re.split(r";(?![^\[]*\])", mods)
+    if not any(';' in mod for mod in mods_split):
         # No semicolon inside brackets; simply split by semicolon
         return mods.split(';')
 
-    # All that remains now are the following cases:
-    # NxAcetyl [X1; Y2; Z3]
-    # Go semicolon by semicolon
-    mods_split = []
-    mods_updated = mods
-    while mods_updated != "":
-        semicolon_index = mods_updated.find(';')
-        if semicolon_index < 0:
-            # No more semicolons
-            mods_split.append(mods_updated)
-            mods_updated = ""
-            continue
-        right_bracket_index = mods_updated.find(']')
-        if right_bracket_index < 0:
-            # Unrecognized modification string
-            raise RuntimeError(f"Unexpected modification string '{mods}' - please consult developer")
-        if right_bracket_index < semicolon_index:
-            # The modification entry ends before the next semicolon ("] ;")
-            splat = mods_updated.split(';',maxsplit=1)
-            mods_split.append(splat[0])
-            mods_updated = splat[1]
-            continue
-        # Otherwise we have [ ; ]
-        match = re.search(r'\[.*\]', mods_updated)
-        if not match:
-            # Unrecognized modification string
-            raise RuntimeError(f"Unexpected modification string '{mods}' - please consult developer")
-        bracket_string = match.group()
-        semi_count = bracket_string.count(';')
-        inner_list = bracket_string.strip('[]').split(';')
-        mod_prefix = mods_updated.split('[',maxsplit=1)[0]
-        if mod_prefix[0] in '123456789':
-            # #xTargetmod
-            # Since we are splitting into one each:
-            # 1xTargetmod
-            mod_prefix = '1'+mod_prefix[1:]
-        for inner in inner_list:
-            mods_split.append(f"{mod_prefix}[{inner}]")
-        mods_updated = mods_updated.split(';',maxsplit=semi_count)[-1]
-    return [mod.strip() for mod in mods_split]
+    # All that remains now is to split inner semi-colons:
+    # NxMod [X1; Y2; Z3]
+    # 1xMod [X1]
+    # 1xMod [N-Term]
+    # 1xMod [X1(100)]
+
+    mods_updated = []
+    for mod in mods_split:
+        if not ';' in mod:
+            mods_updated.append(mod)
+        if ';' in mod:
+            sc_count = mod.count(';')
+            bracket_string = re.search(r"\[.*\]", mod).group()
+            mod_prefix = mod.split('[')[0]
+            inner_list = bracket_string.strip('[]').split(';')
+            # inner_list is a list of str such as:
+            #  * 'X1'
+            #  * 'Y2'
+            #  * 'Z3'
+            split_list = [f'{mod_prefix}[{item.strip()}]' for item in inner_list]
+            mods_updated += split_list
+
+    return mods_updated
 
 def remove_fasta_comments(fasta_lines: list[str]) -> list:
     for i in reversed(range(len(fasta_lines))):

@@ -95,8 +95,11 @@ class Result:
         for i in range(line_pairs):
             first_index = (i * width) + 1
             last_index = min(first_index + width - 1, len(coverage_string))
-            aligned_string += f"{'FASTA':>{len(self.experiment_name)}s} {first_index:{gap_width}d} {self.fasta_sequence[first_index-1:first_index+width]} {last_index}\n"
-            aligned_string += f"{self.experiment_name} {gap} {coverage_string[first_index-1:first_index+width]} {last_index}\n\n"
+            # Must make sure "FASTA" lines up with experiment name
+            sized_FASTA_str = f"{'FASTA':>{len(self.experiment_name)}s}"
+            sized_expnm_str = f"{self.experiment_name:>{len('FASTA')}s}"
+            aligned_string += f"{sized_FASTA_str} {first_index:{gap_width}d} {self.fasta_sequence[first_index-1:first_index+width]} {last_index}\n"
+            aligned_string += f"{sized_expnm_str} {gap} {coverage_string[first_index-1:first_index+width]} {last_index}\n\n"
         return aligned_string
 
 def compute_results(context: dict):

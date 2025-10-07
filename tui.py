@@ -80,7 +80,7 @@ def select_single_fasta_file(fasta_filenames_flat: list[str], experiment_name: s
         choices=fasta_filenames_flat+["Choose new FASTA file","Ignore this column"]
     ).ask()
 
-    if "Ignore" in choice:
+    if choice == None or "Ignore" in choice:
         return ""
 
     if "Choose new" in choice:
