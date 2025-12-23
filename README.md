@@ -1,5 +1,8 @@
 # ResiCritic
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13121149.svg)](https://doi.org/10.5281/zenodo.18040770)
+
+
 A hybrid command-line tool with file dialogs for analyzing mass spectrometry data from Proteome Discoverer (Thermo Fisher) or PEAKS (Bioinformatics Solutions).
 
 ## Building
